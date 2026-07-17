@@ -245,33 +245,8 @@
 </html>`;
     }
 
-    async function generateGame() {
-      const prompt = promptInput.value;
-      generateButton.disabled = true;
-      generateButton.textContent = 'Generating...';
-
-      try {
-        const response = await fetch('http://localhost:3000/api/generate-game', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ prompt }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Server responded with ${response.status}`);
-        }
-
-        const { html } = await response.json();
-        gameFrame.srcdoc = html;
-      } catch (error) {
-        console.warn('Falling back to local placeholder game:', error);
-        gameFrame.srcdoc = buildPlaceholderGame(prompt);
-      } finally {
-        generateButton.disabled = false;
-        generateButton.textContent = 'Generate Game';
-      }
+    function generateGame() {
+      gameFrame.srcdoc = buildPlaceholderGame(promptInput.value);
     }
 
     generateButton.addEventListener('click', generateGame);
