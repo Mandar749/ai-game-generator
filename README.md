@@ -11,16 +11,16 @@ npm install
 If you are starting from an empty Node project, install the backend dependencies directly:
 
 ```bash
-npm install express cors openai
+npm install express cors
 ```
 
 ## Run the backend server
 
 ```bash
-OPENAI_API_KEY=your_api_key_here npm start
+npm start
 ```
 
-Set `OPENAI_API_KEY` before starting the server. The Express server listens on `http://localhost:3000` and exposes `POST /api/generate-game`.
+The Express server listens on `http://localhost:3000` and exposes `POST /api/generate-game`.
 
 ## Run the frontend
 

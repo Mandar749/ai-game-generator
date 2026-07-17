@@ -1,142 +1,139 @@
 const express = require('express');
 const cors = require('cors');
-const OpenAI = require('openai');
 
 const app = express();
 const PORT = 3000;
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'missing-openai-api-key',
-});
 
-app.use(cors({ origin: '*' }));
+app.use(cors({
+  origin: ['http://localhost:4173', 'http://127.0.0.1:4173'],
+}));
 app.use(express.json());
 
+function escapeHtml(value) {
+  return value.replace(/[&<>'"]/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;',
+  })[character]);
+}
 
-app.post('/api/generate-game', async (req, res) => {
+function buildMockCanvasGame(prompt) {
+  const safePrompt = escapeHtml(prompt.trim() || 'No prompt provided.');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #111827;
+      color: #f9fafb;
+      font-family: Arial, sans-serif;
+    }
+
+    .game-wrap {
+      width: min(720px, 92vw);
+      text-align: center;
+    }
+
+    canvas {
+      width: 100%;
+      max-width: 640px;
+      border: 3px solid #f87171;
+      border-radius: 12px;
+      background: #030712;
+    }
+
+    p {
+      color: #d1d5db;
+    }
+  </style>
+</head>
+<body>
+  <main class="game-wrap">
+    <h1>Mock Generated Canvas Game</h1>
+    <p><strong>Prompt:</strong> ${safePrompt}</p>
+    <canvas id="gameCanvas" width="640" height="360"></canvas>
+    <p>Use the arrow keys to move the red box.</p>
+  </main>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const player = { x: 40, y: 40, size: 40, speed: 16 };
+    const keys = new Set();
+
+    window.addEventListener('keydown', (event) => keys.add(event.key));
+    window.addEventListener('keyup', (event) => keys.delete(event.key));
+
+    function update() {
+      if (keys.has('ArrowLeft')) player.x -= player.speed;
+      if (keys.has('ArrowRight')) player.x += player.speed;
+      if (keys.has('ArrowUp')) player.y -= player.speed;
+      if (keys.has('ArrowDown')) player.y += player.speed;
+
+      player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
+      player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#1f2937';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(player.x, player.y, player.size, player.size);
+      ctx.fillStyle = '#f9fafb';
+      ctx.font = '20px Arial';
+      ctx.fillText('Move me with arrow keys', 20, 330);
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  <\/script>
+</body>
+</html>`;
+}
+
+app.post('/api/generate-game', (req, res) => {
   const { prompt } = req.body;
 
   if (typeof prompt !== 'string') {
     return res.status(400).json({ error: 'Request body must include a prompt string.' });
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    return res.status(500).json({
-      error: 'OpenAI API key is not configured.',
-      details: 'Set OPENAI_API_KEY before calling /api/generate-game.',
-    });
-  }
+  /*
+   * Placeholder Step A:
+   * Call GPT-5.6 with the user's prompt to produce structured game architecture JSON.
+   * Example future shape:
+   * const architecture = await gpt56Client.responses.create({
+   *   model: 'gpt-5.6',
+   *   input: `Create structured game architecture JSON for: ${prompt}`,
+   * });
+   */
 
-  try {
-    const architectureResponse = await openai.responses.create({
-      model: 'gpt-5.6',
-      input: [
-        {
-          role: 'system',
-          content: 'You are the Game Architect. Convert the user prompt into a concise, implementation-ready browser game blueprint.',
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'game_architecture',
-          strict: true,
-          schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              title: { type: 'string' },
-              genre: { type: 'string' },
-              gameVariables: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  additionalProperties: false,
-                  properties: {
-                    name: { type: 'string' },
-                    type: { type: 'string' },
-                    initialValue: { type: 'string' },
-                    purpose: { type: 'string' },
-                  },
-                  required: ['name', 'type', 'initialValue', 'purpose'],
-                },
-              },
-              characterNames: {
-                type: 'array',
-                items: { type: 'string' },
-              },
-              winConditions: {
-                type: 'array',
-                items: { type: 'string' },
-              },
-              lossConditions: {
-                type: 'array',
-                items: { type: 'string' },
-              },
-              emojiAssetMap: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  additionalProperties: false,
-                  properties: {
-                    assetName: { type: 'string' },
-                    emoji: { type: 'string' },
-                    usage: { type: 'string' },
-                  },
-                  required: ['assetName', 'emoji', 'usage'],
-                },
-              },
-            },
-            required: [
-              'title',
-              'genre',
-              'gameVariables',
-              'characterNames',
-              'winConditions',
-              'lossConditions',
-              'emojiAssetMap',
-            ],
-          },
-        },
-      },
-    });
+  /*
+   * Placeholder Step B:
+   * Pass the structured architecture JSON to the Codex agent so it can generate
+   * the final raw, self-contained HTML/CSS/JS game string.
+   * Example future shape:
+   * const html = await codexAgent.generate({
+   *   task: 'Build a single-file browser game from this architecture JSON.',
+   *   input: architecture.output_json,
+   * });
+   */
 
-    const architectureBlueprint = JSON.parse(architectureResponse.output_text);
-
-    const codexResponse = await openai.responses.create({
-      model: 'codex-agent',
-      input: [
-        {
-          role: 'system',
-          content: [
-            'You are the Codex coding agent for a browser game generator.',
-            'Output ONLY one raw, execution-ready HTML document as a single string.',
-            'Do not include markdown, explanations, or ```html formatting fences.',
-            'The HTML must be self-contained and include all CSS and JavaScript needed to run inside an iframe srcdoc.',
-          ].join(' '),
-        },
-        {
-          role: 'user',
-          content: `Build the game from this architecture JSON blueprint:
-${JSON.stringify(architectureBlueprint, null, 2)}`,
-        },
-      ],
-    });
-
-    const html = codexResponse.output_text.trim();
-
-    return res.json({ html, architecture: architectureBlueprint });
-  } catch (error) {
-    console.error('OpenAI game generation failed:', error);
-
-    return res.status(502).json({
-      error: 'Failed to generate game with OpenAI.',
-      details: error instanceof Error ? error.message : 'Unknown OpenAI API error.',
-    });
-  }
+  return res.json({ html: buildMockCanvasGame(prompt) });
 });
 
 app.listen(PORT, () => {
