@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Game Generator Sandbox</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --panel: #111827;
+      --panel-light: #172033;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #7c3aed;
+      --accent-hover: #8b5cf6;
+      --border: #263247;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: minmax(320px, 34vw) 1fr;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    .prompt-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      padding: 2rem;
+      background: linear-gradient(180deg, var(--panel) 0%, #0d1324 100%);
+      border-right: 1px solid var(--border);
+      box-shadow: 12px 0 32px rgba(0, 0, 0, 0.25);
+      min-width: 0;
+    }
+
+    .prompt-panel h1 {
+      margin: 0;
+      font-size: clamp(1.7rem, 4vw, 2.6rem);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .prompt-panel p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    label {
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    textarea {
+      flex: 1;
+      width: 100%;
+      min-height: 260px;
+      resize: none;
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      outline: none;
+      background: var(--panel-light);
+      color: var(--text);
+      font: 1rem/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+      transition: border-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    textarea:focus {
+      border-color: var(--accent-hover);
+      box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.2);
+    }
+
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 18px;
+      padding: 1.1rem 1.3rem;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), #2563eb);
+      color: white;
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+      box-shadow: 0 18px 35px rgba(37, 99, 235, 0.25);
+      transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
+    }
+
+    button:hover {
+      filter: brightness(1.08);
+      transform: translateY(-1px);
+      box-shadow: 0 22px 44px rgba(37, 99, 235, 0.32);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .preview-panel {
+      display: flex;
+      min-width: 0;
+      background: #050812;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: white;
+    }
+
+    @media (max-width: 760px) {
+      body {
+        overflow: auto;
+      }
+
+      .app-shell {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(420px, 50vh) minmax(420px, 50vh);
+        min-height: 100vh;
+        height: auto;
+      }
+
+      .prompt-panel {
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <section class="prompt-panel" aria-labelledby="app-title">
+      <div>
+        <h1 id="app-title">AI Game Generator</h1>
+        <p>Describe a game idea, then generate a sandbox preview in the iframe.</p>
+      </div>
+
+      <label for="gamePrompt">Game prompt</label>
+      <textarea id="gamePrompt" placeholder="Example: Make a neon asteroid dodger with mouse controls and score pickups.">Create a tiny canvas game prototype with a friendly Hello World message.</textarea>
+      <button id="generateButton" type="button">Generate Game</button>
+    </section>
+
+    <section class="preview-panel" aria-label="Generated game preview">
+      <iframe id="gameFrame" title="Generated game preview" sandbox="allow-scripts"></iframe>
+    </section>
+  </main>
+
+  <script>
+    const promptInput = document.getElementById('gamePrompt');
+    const generateButton = document.getElementById('generateButton');
+    const gameFrame = document.getElementById('gameFrame');
+
+    function escapeHtml(value) {
+      return value.replace(/[&<>'"]/g, (character) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;',
+      })[character]);
+    }
+
+    function buildPlaceholderGame(promptText) {
+      const safePrompt = escapeHtml(promptText.trim() || 'No prompt entered yet.');
+
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Inter, system-ui, sans-serif;
+      background: radial-gradient(circle at top left, #4f46e5, #111827 48%, #030712);
+      color: #f9fafb;
+    }
+
+    .game-card {
+      width: min(760px, 90vw);
+      padding: 2rem;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 28px;
+      background: rgba(17, 24, 39, 0.8);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.38);
+      text-align: center;
+    }
+
+    canvas {
+      width: 100%;
+      max-width: 560px;
+      border-radius: 18px;
+      background: #020617;
+      box-shadow: inset 0 0 30px rgba(125, 211, 252, 0.2);
+    }
+
+    p {
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <article class="game-card">
+    <h1>Hello World Game Preview</h1>
+    <p><strong>Prompt:</strong> ${safePrompt}</p>
+    <canvas id="previewCanvas" width="560" height="280" aria-label="Placeholder canvas graphic"></canvas>
+    <p>This placeholder proves the prompt-to-iframe <code>srcdoc</code> injection pipeline works.</p>
+  </article>
+  <script>
+    const canvas = document.getElementById('previewCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#22d3ee';
+    ctx.beginPath();
+    ctx.arc(280, 120, 58, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 32px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('Hello World!', 280, 205);
+  <\/script>
+</body>
+</html>`;
+    }
+
+    async function generateGame() {
+      const prompt = promptInput.value;
+      generateButton.disabled = true;
+      generateButton.textContent = 'Generating...';
+
+      try {
+        const response = await fetch('http://localhost:3000/api/generate-game', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prompt }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server responded with ${response.status}`);
+        }
+
+        const { html } = await response.json();
+        gameFrame.srcdoc = html;
+      } catch (error) {
+        console.warn('Falling back to local placeholder game:', error);
+        gameFrame.srcdoc = buildPlaceholderGame(prompt);
+      } finally {
+        generateButton.disabled = false;
+        generateButton.textContent = 'Generate Game';
+      }
+    }
+
+    generateButton.addEventListener('click', generateGame);
+    generateGame();
+  </script>
+</body>
+</html>
